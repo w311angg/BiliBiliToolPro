@@ -20,6 +20,7 @@
       - [3.2.3. 手动运行测试](#323-手动运行测试)
       - [3.2.4. 配置触发器，设定运行时间和频率](#324-配置触发器设定运行时间和频率)
   - [4. 测试](#4-测试)
+  - [5. 关于腾讯云日志](#5-关于腾讯云日志)
 
 <!-- /TOC -->
 
@@ -122,7 +123,7 @@ Actions 使用 `Serverless Framework` 来部署，通过 `serverless.yml` 来配
 ### 3.2. 方式二：上传zip包部署
 该方式比较简单直观，但是代码是上传是固定版本，想更新的话需要再次手动上传。
 #### 3.2.1. 下载压缩包到本地
-点击[BiliBiliTool/release](https://github.com/RayWangQvQ/BiliBiliTool/releases)，选择最新版本的 `tencent-scf.zip` ，下载到本地
+点击[BiliBiliToolPro/release](https://github.com/RayWangQvQ/BiliBiliToolPro/releases)，选择最新版本的 `tencent-scf.zip` ，下载到本地
 #### 3.2.2. 云函数控制台新增函数服务
 **Ⅰ.进入[云函数控制台](https://console.cloud.tencent.com/scf/)，单击左侧导航栏【函数服务】，进入“函数服务”页面。顶部地域选择一个靠近自己地址的，点击新建按钮。**
 
@@ -205,3 +206,21 @@ Actions 使用 `Serverless Framework` 来部署，通过 `serverless.yml` 来配
 如下图:
 
 ![tencent-scf-test-2](../docs/imgs/tencent-scf-test-2.png)
+
+## 5. 关于腾讯云日志
+
+**Ⅰ.腾讯云关于CLS日志的免费额度说明如下：**
+
+![Tencent-log-docs-1.png](../docs/imgs/Tencent-log-docs-1.png)
+
+**Ⅱ.实测每日运行函数日志花费如图：**
+
+![Tencent-log-bill-1.png](../docs/imgs/Tencent-log-bill-1.png)
+
+**Ⅲ.如果需要完全白嫖(即不需要任何费用)的话，可以切至[腾讯云日志服务页](https://console.cloud.tencent.com/cls/overview)**
+
+**Ⅳ.点击侧边栏的日志主题，并找到云函数所在地域，如图所示：**
+
+![Tencent-logpage-1.png](../docs/imgs/Tencent-logpage-1.png)
+
+**Ⅴ.点击删除，则将删除此日志主题，云函数因为无法定位到日志集，就不会产生额外费用。**
