@@ -96,4 +96,4 @@ jobs:
     - name: Test APP
       run: |
         cd ./src/Ray.BiliBiliTool.Console/bin/Publish/net5-dependent
-        dotnet Ray.BiliBiliTool.Console.dll ${{secrets.OTHERCONFIGS}}
+        dotnet Ray.BiliBiliTool.Console.dll --runTasks=Daily ${{secrets.OTHERCONFIGS}}
