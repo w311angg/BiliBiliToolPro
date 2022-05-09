@@ -92,3 +92,4 @@ jobs:
         cd ./src/Ray.BiliBiliTool.Console/bin/Publish/net5-dependent
         dotnet Ray.BiliBiliTool.Console.dll --runTasks=UnfollowBatched
  
+    - uses: gautamkrishnar/keepalive-workflow@master
