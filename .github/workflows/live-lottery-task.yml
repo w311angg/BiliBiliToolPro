@@ -105,4 +105,4 @@ jobs:
         cd ./src/Ray.BiliBiliTool.Console/bin/Publish/net5-dependent
         dotnet Ray.BiliBiliTool.Console.dll --runTasks=LiveLottery ${{secrets.OTHERCONFIGS}}
 
-    - uses: gautamkrishnar/keepalive-workflow@master
+   # - uses: gautamkrishnar/keepalive-workflow@master
