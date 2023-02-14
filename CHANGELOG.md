@@ -1,11 +1,3 @@
-<!--
- * @Author: Ray zai7lou@outlook.com
- * @Date: 2023-01-18 23:26:31
- * @LastEditors: Ray zai7lou@outlook.com
- * @LastEditTime: 2023-02-11 22:42:45
- * @FilePath: \BiliBiliToolPro\CHANGELOG.md
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
--->
 ## 0.0.1
 - 重启项目
 - 支持[青龙面板](https://github.com/whyour/qinglong)部署
@@ -91,4 +83,15 @@
 ## 0.4.1
 - Merge PR #418 : Fix search video api's error, thx @catlair
 ## 0.4.2
-- Merfe PRs #425 #426 #427 : enhancement docker things, thx @zclkkk
+- Merfe PRs #425 #426 #427 : Enhancement docker things, thx @zclkkk
+## 0.4.3
+- Feature #419 : Add a auto shell script for installing with docker
+- Feature #396 : Publish docker image to GitHub pkg
+## 0.4.4
+- Fix #228 : Try to fix sharing video error
+- Feature: Change default docker image from dockerhub to github
+## 0.4.5
+- Fix #423 : Change int to string to avoid overflow exception
+## 0.4.6
+- Fix: ck list init empty error
+- Feature #440 : use 'apk add' to install dotnet in qinglong
