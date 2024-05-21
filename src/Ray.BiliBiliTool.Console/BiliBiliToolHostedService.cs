@@ -9,10 +9,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ray.BiliBiliTool.Application.Contracts;
-using Ray.BiliBiliTool.Config;
 using Ray.BiliBiliTool.Config.Options;
-using Ray.BiliBiliTool.Infrastructure;
 using Ray.BiliBiliTool.Infrastructure.Cookie;
+using Constants = Ray.BiliBiliTool.Config.Constants;
 
 namespace Ray.BiliBiliTool.Console
 {
@@ -46,25 +45,25 @@ namespace Ray.BiliBiliTool.Console
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            var isNotifySingle = _configuration.GetSection("Notification:IsSingleAccountSingleNotify").Get<bool>();
+            bool isNotifySingle = _configuration.GetSection("Notification:IsSingleAccountSingleNotify").Get<bool>();
 
             try
             {
                 _logger.LogInformation("BiliBiliToolPro 开始运行...{newLine}", Environment.NewLine);
 
-                var pass = await PreCheckAsync(cancellationToken);
-                if (!pass) return;
+                bool pass = await PreCheckAsync(cancellationToken);
+                if (!pass)
+                    return;
 
                 await RandomSleepAsync(cancellationToken);
 
-                var tasks = _configuration["RunTasks"]
-                    .Split("&", options: StringSplitOptions.RemoveEmptyEntries);
+                string[] tasks = await ReadTargetTasksAsync(cancellationToken);
+                _logger.LogInformation("【目标任务】{tasks}", string.Join(",", tasks));
 
                 if (tasks.Contains("Login"))
                 {
                     await DoTasksAsync(tasks, cancellationToken);
                 }
-
                 else
                 {
                     for (int i = 0; i < _cookieStrFactory.Count; i++)
@@ -79,7 +78,7 @@ namespace Ray.BiliBiliTool.Console
                             {
                                 LogAppInfo();
 
-                                var accountName = _cookieStrFactory.Count > 1 ? $"账号【{_cookieStrFactory.CurrentNum}】" : "";
+                                string accountName = _cookieStrFactory.Count > 1 ? $"账号【{_cookieStrFactory.CurrentNum}】" : "";
                                 _logger.LogInformation("·开始推送·{task}·{user}", $"{_configuration["RunTasks"]}任务", accountName);
                             }
                         }
@@ -107,6 +106,8 @@ namespace Ray.BiliBiliTool.Console
                 _logger.LogInformation("运行环境：{env}", _environment.EnvironmentName);
                 _logger.LogInformation("应用目录：{path}{newLine}", _environment.ContentRootPath, Environment.NewLine);
                 _logger.LogInformation("运行结束");
+
+                //自动退出
                 _applicationLifetime.StopApplication();
             }
         }
@@ -118,15 +119,8 @@ namespace Ray.BiliBiliTool.Console
 
         private Task<bool> PreCheckAsync(CancellationToken cancellationToken)
         {
-            //目标任务
-            _logger.LogInformation("【目标任务】{tasks}", _configuration["RunTasks"]);
-            var tasks = _configuration["RunTasks"]
-                .Split("&", options: StringSplitOptions.RemoveEmptyEntries);
-            if (!tasks.Any()) return Task.FromResult(false);
-
             //Cookie
             _logger.LogInformation("【账号个数】{count}个{newLine}", _cookieStrFactory.Count, Environment.NewLine);
-            if (_cookieStrFactory.Count == 0 && !tasks.Contains("Login")) return Task.FromResult(false);
 
             //是否跳过
             if (_securityOptions.IsSkipDailyTask)
@@ -140,7 +134,8 @@ namespace Ray.BiliBiliTool.Console
 
         private async Task RandomSleepAsync(CancellationToken cancellationToken)
         {
-            if (_configuration["RunTasks"].Contains("Login") || _configuration["RunTasks"].Contains("Test")) return;
+            if (_configuration["RunTasks"].Contains("Login") || _configuration["RunTasks"].Contains("Test"))
+                return;
 
             if (_securityOptions.RandomSleepMaxMin > 0)
             {
@@ -150,19 +145,52 @@ namespace Ray.BiliBiliTool.Console
             }
         }
 
+        /// <summary>
+        /// 读取目标任务
+        /// </summary>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        private Task<string[]> ReadTargetTasksAsync(CancellationToken cancellationToken)
+        {
+            string[] tasks = _configuration["RunTasks"]
+                .Split("&", options: StringSplitOptions.RemoveEmptyEntries);
+            if (tasks.Any())
+            {
+                return Task.FromResult(tasks);
+            }
+
+            _logger.LogInformation("未指定目标任务，请选择要运行的任务：");
+            TaskTypeFactory.Show(_logger);
+            _logger.LogInformation("请输入：");
+
+            while (true)
+            {
+                string index = System.Console.ReadLine();
+                bool suc = int.TryParse(index, out int num);
+                if (suc)
+                {
+                    string code = TaskTypeFactory.GetCodeByIndex(num);
+                    _configuration["RunTasks"] = code;
+                    return Task.FromResult(new string[] { code });
+                }
+
+                _logger.LogWarning("输入异常，请输入序号");
+            }
+        }
+
         private async Task DoTasksAsync(string[] tasks, CancellationToken cancellationToken)
         {
-            using var scope = _serviceProvider.CreateScope();
-            foreach (var task in tasks)
+            using IServiceScope scope = _serviceProvider.CreateScope();
+            foreach (string task in tasks)
             {
-                var type = TaskTypeFactory.Create(task);
+                Type type = TaskTypeFactory.Create(task);
                 if (type == null)
                 {
                     _logger.LogWarning("任务不存在：{task}", task);
                     continue;
                 }
 
-                var appService = (IAppService)scope.ServiceProvider.GetRequiredService(type);
+                IAppService appService = (IAppService)scope.ServiceProvider.GetRequiredService(type);
                 await appService?.DoTaskAsync(cancellationToken);
             }
         }
