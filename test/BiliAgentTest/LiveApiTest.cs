@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Ray.BiliBiliTool.Infrastructure.Cookie;
 using Xunit;
+using Ray.BiliBiliTool.Agent.BiliBiliAgent.Services;
 
 namespace BiliAgentTest
 {
@@ -123,7 +124,7 @@ namespace BiliAgentTest
         }
 
         [Fact]
-        public void GetSpaceInfo_Normal_Success()
+        public async Task GetSpaceInfo_Normal_Success()
         {
             using var scope = Global.ServiceProviderRoot.CreateScope();
 
@@ -131,7 +132,17 @@ namespace BiliAgentTest
             var api = scope.ServiceProvider.GetRequiredService<IUserInfoApi>();
             var biliCookie = scope.ServiceProvider.GetRequiredService<BiliCookie>();
 
-            BiliApiResponse<GetSpaceInfoResponse> re = api.GetSpaceInfo(919174).Result;
+            var wbiService = scope.ServiceProvider.GetRequiredService<IWbiService>();
+
+            var req = new GetSpaceInfoDto()
+            {
+                mid = 919174L
+            };
+
+            await wbiService.SetWridAsync(req);
+
+
+            BiliApiResponse<GetSpaceInfoResponse> re = api.GetSpaceInfo(req).Result;
 
             Assert.True(re.Code == 0);
             Assert.NotNull(re.Data);

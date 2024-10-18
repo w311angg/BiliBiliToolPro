@@ -11,6 +11,7 @@ using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos;
 using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos.Live;
 using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos.Relation;
 using Ray.BiliBiliTool.Agent.BiliBiliAgent.Interfaces;
+using Ray.BiliBiliTool.Agent.BiliBiliAgent.Services;
 using Ray.BiliBiliTool.Config.Options;
 using Ray.BiliBiliTool.DomainService.Dtos;
 using Ray.BiliBiliTool.DomainService.Interfaces;
@@ -33,7 +34,7 @@ namespace Ray.BiliBiliTool.DomainService
         private readonly DailyTaskOptions _dailyTaskOptions;
         private readonly SecurityOptions _securityOptions;
         private readonly BiliCookie _biliCookie;
-
+        private readonly IWbiService _wbiService;
 
         public LiveDomainService(ILogger<LiveDomainService> logger,
             ILiveApi liveApi,
@@ -44,6 +45,7 @@ namespace Ray.BiliBiliTool.DomainService
             IOptionsMonitor<LiveLotteryTaskOptions> liveLotteryTaskOptions,
             IOptionsMonitor<LiveFansMedalTaskOptions> liveFansMedalTaskOptions,
             IOptionsMonitor<SecurityOptions> securityOptions,
+            IWbiService wbiService,
             BiliCookie biliCookie)
         {
             _logger = logger;
@@ -55,6 +57,7 @@ namespace Ray.BiliBiliTool.DomainService
             _dailyTaskOptions = dailyTaskOptions.CurrentValue;
             _liveFansMedalTaskOptions = liveFansMedalTaskOptions.CurrentValue;
             _securityOptions = securityOptions.CurrentValue;
+            _wbiService = wbiService;
             _biliCookie = biliCookie;
 
         }
@@ -407,7 +410,13 @@ namespace Ray.BiliBiliTool.DomainService
 
                 // 通过空间主页信息获取直播间 id
                 var liveHostUserId = medal.Medal_info.Target_id;
-                var spaceInfo = await _userInfoApi.GetSpaceInfo(liveHostUserId);
+                var req = new GetSpaceInfoDto()
+                {
+                    mid = liveHostUserId
+                };
+                await _wbiService.SetWridAsync(req);
+
+                var spaceInfo = await _userInfoApi.GetSpaceInfo(req);
                 if (spaceInfo.Code != 0)
                 {
                     _logger.LogError("【获取直播间信息】失败");
@@ -578,7 +587,13 @@ namespace Ray.BiliBiliTool.DomainService
 
                 // 通过空间主页信息获取直播间 id
                 var liveHostUserId = medal.Medal_info.Target_id;
-                var spaceInfo = await _userInfoApi.GetSpaceInfo(liveHostUserId);
+                var req = new GetSpaceInfoDto()
+                {
+                    mid = liveHostUserId
+                };
+                await _wbiService.SetWridAsync(req);
+
+                var spaceInfo = await _userInfoApi.GetSpaceInfo(req);
                 if (spaceInfo.Code != 0)
                 {
                     _logger.LogError("【获取空间信息】失败");
@@ -586,6 +601,14 @@ namespace Ray.BiliBiliTool.DomainService
                     continue;
                 }
 
+                // 用以排除有牌子无直播间的up主
+                if (spaceInfo.Data.Live_room is null)
+                {
+                    _logger.LogInformation("【主播】{name} 直播间id获取失败，已跳过",medal.Target_name);
+                    continue;
+                }
+                    
+                
                 var roomId = spaceInfo.Data.Live_room.Roomid;
 
                 // 获取直播间详细信息
