@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Ray.BiliBiliTool.Agent;
 using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos;
+using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos.Video;
 using Ray.BiliBiliTool.Agent.BiliBiliAgent.Interfaces;
+using Ray.BiliBiliTool.Agent.BiliBiliAgent.Services;
 using Ray.BiliBiliTool.Config;
 using Ray.BiliBiliTool.Config.Options;
 using Ray.BiliBiliTool.DomainService.Dtos;
@@ -27,6 +29,7 @@ namespace Ray.BiliBiliTool.DomainService
         private readonly IRelationApi _relationApi;
         private readonly IVideoApi _videoApi;
         private readonly IVideoWithoutCookieApi _videoWithoutCookieApi;
+        private readonly IWbiService _wbiService;
 
         public VideoDomainService(
             ILogger<VideoDomainService> logger,
@@ -36,7 +39,8 @@ namespace Ray.BiliBiliTool.DomainService
             IOptionsMonitor<Dictionary<string, int>> dicOptions,
             IRelationApi relationApi,
             IVideoApi videoApi,
-            IVideoWithoutCookieApi videoWithoutCookieApi
+            IVideoWithoutCookieApi videoWithoutCookieApi,
+            IWbiService wbiService
             )
         {
             _logger = logger;
@@ -44,6 +48,7 @@ namespace Ray.BiliBiliTool.DomainService
             _relationApi = relationApi;
             _videoApi = videoApi;
             _videoWithoutCookieApi = videoWithoutCookieApi;
+            _wbiService = wbiService;
             _biliBiliCookie = biliBiliCookie;
             _expDic = dicOptions.Get(Constants.OptionsNames.ExpDictionaryName);
             _dailyTaskOptions = dailyTaskOptions.CurrentValue;
@@ -76,8 +81,15 @@ namespace Ray.BiliBiliTool.DomainService
         {
             if (total <= 0) return null;
 
-            int pageNum = new Random().Next(1, total + 1);
-            BiliApiResponse<SearchUpVideosResponse> re = await _videoApi.SearchVideosByUpId(upId, 1, pageNum);
+            var req = new SearchVideosByUpIdDto()
+            {
+                mid = upId,
+                ps = 1,
+                pn= new Random().Next(1, total + 1)
+            };
+            await _wbiService.SetWridAsync(req);
+
+            BiliApiResponse<SearchUpVideosResponse> re = await _videoApi.SearchVideosByUpId(req);
 
             if (re.Code != 0)
             {
@@ -94,7 +106,13 @@ namespace Ray.BiliBiliTool.DomainService
         /// <returns></returns>
         public async Task<int> GetVideoCountOfUp(long upId)
         {
-            BiliApiResponse<SearchUpVideosResponse> re = await _videoApi.SearchVideosByUpId(upId);
+            var req = new SearchVideosByUpIdDto()
+            {
+                mid = upId
+            };
+            await _wbiService.SetWridAsync(req);
+
+            BiliApiResponse<SearchUpVideosResponse> re = await _videoApi.SearchVideosByUpId(req);
             if (re.Code != 0)
             {
                 throw new Exception(re.Message);

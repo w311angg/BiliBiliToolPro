@@ -32,7 +32,11 @@ namespace Ray.BiliBiliTool.Infrastructure.Cookie
 
         public Dictionary<string, string> GetCurrentCookieDic()
         {
-            if (!Any()) throw new Exception($"第 {CurrentNum} 个cookie不存在");
+            if (!Any())
+            {
+                return new Dictionary<string, string>(); //todo
+                //throw new Exception($"第 {CurrentNum} 个cookie不存在");
+            }
 
             return _cookieDictionary[CurrentNum];
         }
@@ -100,9 +104,15 @@ namespace Ray.BiliBiliTool.Infrastructure.Cookie
 
         private Dictionary<string, string> CkStrToDictionary(string ckStr)
         {
-            return ckStr.Split(";", StringSplitOptions.TrimEntries)
-                .ToDictionary(k => k[..k.IndexOf("=", StringComparison.Ordinal)].Trim(),
-                    v => v[(v.IndexOf("=", StringComparison.Ordinal) + 1)..].Trim());
+            var dic = new Dictionary<string, string>();
+            var ckItemList = ckStr.Split(";", StringSplitOptions.TrimEntries).Distinct();
+            foreach (var item in ckItemList)
+            {
+                var key = item[..item.IndexOf("=", StringComparison.Ordinal)].Trim();
+                var value = item[(item.IndexOf("=", StringComparison.Ordinal) + 1)..].Trim();
+                dic.AddIfNotExist(new KeyValuePair<string, string>(key, value), p => p.Key == key);
+            }
+            return dic;
         }
 
         private string DictionaryToCkStr(Dictionary<string, string> dic)
