@@ -1,52 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Ray.BiliBiliTool.Agent.Attributes;
-using WebApiClientCore.Attributes;
+﻿using Ray.BiliBiliTool.Agent.QingLong.Dtos;
+using Refit;
 
-namespace Ray.BiliBiliTool.Agent.QingLong
+namespace Ray.BiliBiliTool.Agent.QingLong;
+
+public interface IQingLongApi
 {
-    [LogFilter]
-    public interface IQingLongApi
-    {
-        [HttpGet("/api/envs")]
-        Task<QingLongGenericResponse<List<QingLongEnv>>> GetEnvs(string searchValue, [Header("Authorization")] string token);
+    [Get("/open/auth/token")]
+    Task<QingLongGenericResponse<TokenResponse>> GetTokenAsync(
+        [Query] string client_id,
+        [Query] string client_secret
+    );
 
-        [HttpPost("/api/envs")]
-        Task<QingLongGenericResponse<List<QingLongEnv>>> AddEnvs([JsonContent] List<AddQingLongEnv> envs, [Header("Authorization")] string token);
+    [Get("/open/envs")]
+    Task<QingLongGenericResponse<List<QingLongEnv>>> GetEnvsAsync(
+        [Query] string searchValue,
+        [Header("Authorization")] string token
+    );
 
-        [HttpPut("/api/envs")]
-        Task<QingLongGenericResponse<QingLongEnv>> UpdateEnvs([JsonContent] UpdateQingLongEnv env, [Header("Authorization")] string token);
-    }
+    [Post("/open/envs")]
+    Task<QingLongGenericResponse<List<QingLongEnv>>> AddEnvsAsync(
+        [Body] List<AddQingLongEnv> envs,
+        [Header("Authorization")] string token
+    );
 
-    public class QingLongGenericResponse<T>
-    {
-        public int Code { get; set; }
-
-        public T Data { get; set; }
-    }
-
-
-    public class QingLongEnv : UpdateQingLongEnv
-    {
-        public string timestamp { get; set; }
-        public int status { get; set; }
-        //public long position { get; set; }
-        public DateTime createdAt { get; set; }
-        public DateTime updatedAt { get; set; }
-    }
-
-    public class AddQingLongEnv
-    {
-        public string value { get; set; }
-        public string name { get; set; }
-        public string remarks { get; set; }
-    }
-
-    public class UpdateQingLongEnv : AddQingLongEnv
-    {
-        public int id { get; set; }
-    }
+    [Put("/open/envs")]
+    Task<QingLongGenericResponse<QingLongEnv>> UpdateEnvsAsync(
+        [Body] UpdateQingLongEnv env,
+        [Header("Authorization")] string token
+    );
 }

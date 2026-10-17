@@ -1,88 +1,130 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using QRCoder;
 using Ray.BiliBiliTool.Agent;
-using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos.Passport;
-using Ray.BiliBiliTool.Agent.BiliBiliAgent.Dtos;
-using Ray.BiliBiliTool.Agent.BiliBiliAgent.Interfaces;
-using Ray.BiliBiliTool.Agent.QingLong;
 using Ray.BiliBiliTool.Application.Attributes;
 using Ray.BiliBiliTool.Application.Contracts;
-using Ray.BiliBiliTool.Infrastructure.Enums;
-using System.Threading;
+using Ray.BiliBiliTool.Application.Diagnostics;
 using Ray.BiliBiliTool.DomainService.Interfaces;
-using Ray.BiliBiliTool.Infrastructure.Cookie;
+using Ray.BiliBiliTool.Infrastructure.Enums;
 
-namespace Ray.BiliBiliTool.Application
+namespace Ray.BiliBiliTool.Application;
+
+/// <summary>
+/// Application service for automating BiliBili QR code login flow.
+/// Orchestrates the three-step login process: QR code generation → cookie validation → platform-aware persistence.
+/// </summary>
+/// <remarks>
+/// This service is designed for automation task scenarios (triggered by LoginJob)
+/// and delegates all domain logic to ILoginDomainService.
+/// The TaskInterceptor attributes enable telemetry and logging for each workflow step.
+/// </remarks>
+public class LoginTaskAppService(
+    IConfiguration configuration,
+    ILogger<LoginTaskAppService> logger,
+    ILoginDomainService loginDomainService
+) : AppService, ILoginTaskAppService
 {
-    public class LoginTaskAppService : AppService, ILoginTaskAppService
+    /// <summary>
+    /// Executes the complete automated login workflow using QR code authentication.
+    /// </summary>
+    /// <remarks>
+    /// The workflow consists of three sequential steps:
+    /// 1. QR Code Login: Generate QR code and wait for user scan
+    /// 2. Set Cookies: Validate scanned credentials and enrich cookie context
+    /// 3. Save Cookie: Persist credentials to platform-specific storage (QingLong or JSON file)
+    ///
+    /// The entire flow is wrapped in TaskFlowDiagnosticScope for before/after comparison during refactoring.
+    /// </remarks>
+    [TaskInterceptor("扫码登录", TaskLevel.One)]
+    public override async Task DoTaskAsync(CancellationToken cancellationToken = default)
     {
-        private readonly ILogger<LoginTaskAppService> _logger;
-        private readonly ILoginDomainService _loginDomainService;
-        private readonly IConfiguration _configuration;
-
-        public LoginTaskAppService(
-            IConfiguration configuration,
-            ILogger<LoginTaskAppService> logger,
-            ILoginDomainService loginDomainService)
-        {
-            _configuration = configuration;
-            _logger = logger;
-            _loginDomainService = loginDomainService;
-        }
-
-        [TaskInterceptor("扫码登录", TaskLevel.One)]
-        public override async Task DoTaskAsync(CancellationToken cancellationToken)
-        {
-            //扫码登录
-            var cookieInfo = await QrCodeLoginAsync(cancellationToken);
-            if (cookieInfo == null) return;
-
-            //set cookie
-            cookieInfo = await SetCookiesAsync(cookieInfo, cancellationToken);
-
-            //持久化cookie
-            await SaveCookieAsync(cookieInfo, cancellationToken);
-        }
-
-        [TaskInterceptor("获取二维码", TaskLevel.Two)]
-        protected async Task<BiliCookie> QrCodeLoginAsync(CancellationToken cancellationToken)
-        {
-            var biliCookie = await _loginDomainService.LoginByQrCodeAsync(cancellationToken);
-            return biliCookie;
-        }
-
-        [TaskInterceptor("Set Cookie", TaskLevel.Two)]
-        protected async Task<BiliCookie> SetCookiesAsync(BiliCookie biliCookie, CancellationToken cancellationToken)
-        {
-            var ck= await _loginDomainService.SetCookieAsync(biliCookie, cancellationToken);
-            return ck;
-        }
-
-        [TaskInterceptor("持久化Cookie", TaskLevel.Two)]
-        protected async Task SaveCookieAsync(BiliCookie ckInfo, CancellationToken cancellationToken)
-        {
-            var platformType = _configuration.GetSection("PlateformType").Get<PlatformType>();
-            _logger.LogInformation("当前运行平台：{platform}",platformType);
-
-            //更新cookie到青龙env
-            if (platformType == PlatformType.QingLong)
+        await TaskFlowDiagnosticScope.ExecuteAsync(
+            logger,
+            "LoginTask",
+            async () =>
             {
-                await _loginDomainService.SaveCookieToQinLongAsync(ckInfo, cancellationToken);
-                return;
-            }
+                // Step 1: Generate QR code and wait for user to scan via mobile app
+                //扫码登录
+                var cookieInfo = await QrCodeLoginAsync(cancellationToken);
+                if (cookieInfo == null)
+                    return;
 
-            //更新cookie到json
-            await _loginDomainService.SaveCookieToJsonFileAsync(ckInfo, cancellationToken);
+                // Step 2: Validate and enrich the cookie with additional context
+                //set cookie
+                cookieInfo = await SetCookiesAsync(cookieInfo, cancellationToken);
+
+                // Step 3: Persist cookie to platform-specific storage
+                //持久化cookie
+                await SaveCookieAsync(cookieInfo, cancellationToken);
+            }
+        );
+    }
+
+    /// <summary>
+    /// Step 1: Initiates QR code-based authentication flow.
+    /// Delegates to domain service to generate QR code and wait for user scan.
+    /// </summary>
+    /// <returns>Initial cookie information from QR code scan, or null if login failed</returns>
+    [TaskInterceptor("获取二维码")]
+    private async Task<BiliCookie> QrCodeLoginAsync(CancellationToken cancellationToken)
+    {
+        var biliCookie = await loginDomainService.LoginByQrCodeAsync(cancellationToken);
+        return biliCookie;
+    }
+
+    /// <summary>
+    /// Step 2: Validates and enriches cookie context.
+    /// Delegates to domain service to perform server-side validation and add additional cookie fields.
+    /// </summary>
+    /// <param name="biliCookie">Initial cookie from QR code scan</param>
+    /// <returns>Validated and enriched cookie ready for persistence</returns>
+    [TaskInterceptor("Set Cookie")]
+    private async Task<BiliCookie> SetCookiesAsync(
+        BiliCookie biliCookie,
+        CancellationToken cancellationToken
+    )
+    {
+        var ck = await loginDomainService.SetCookieAsync(biliCookie, cancellationToken);
+        return ck;
+    }
+
+    /// <summary>
+    /// Step 3: Persists cookie to platform-specific storage.
+    /// Routes to QingLong environment variables (for automation platforms)
+    /// or JSON file (for local/standalone environments).
+    /// </summary>
+    /// <param name="ckInfo">Validated cookie ready for persistence</param>
+    [TaskInterceptor("持久化Cookie")]
+    private async Task SaveCookieAsync(BiliCookie ckInfo, CancellationToken cancellationToken)
+    {
+        var platformType = configuration.GetSection("PlatformType").Get<PlatformType>();
+        logger.LogInformation("当前运行平台：{platform}", platformType);
+
+        // Platform-aware persistence routing:
+        // QingLong: Automation platform - save to environment variables for scheduled tasks
+        // Otherwise: Local/standalone - save to JSON file for manual execution
+        //更新cookie到青龙env
+        if (platformType == PlatformType.QingLong)
+        {
+            await loginDomainService.SaveCookieToQinLongAsync(ckInfo, cancellationToken);
+            return;
         }
+
+        //更新cookie到白虎env
+        if (platformType == PlatformType.Baihu)
+        {
+            await loginDomainService.SaveCookieToBaihuAsync(ckInfo, cancellationToken);
+            return;
+        }
+
+        //更新cookie到呆呆面板env
+        if (platformType == PlatformType.DaiDai)
+        {
+            await loginDomainService.SaveCookieToDaiDaiAsync(ckInfo, cancellationToken);
+            return;
+        }
+
+        //更新cookie到json
+        await loginDomainService.SaveCookieToJsonFileAsync(ckInfo, cancellationToken);
     }
 }
